@@ -1,0 +1,611 @@
+---
+title: "Correlations in Wealth between Family and Friends"
+output: html_notebook
+author: Amit Min
+---
+
+I set out to find if wealth was contagious in a network. While I wanted to originally observe the spread of wealth in a friend network, I was unable to find any data involving a friend network and income. I was, however, able to find a research paper that analyzed a very similar question with the use of a public data set.
+
+The research analyzed the influence and retention of wealth in families across generations. They found that "a one-decile increase in parents' wealth position is associated with an increase of about four percentiles in their offsprings' wealth position in adulthood" (Fabian). They further found that the role of grandparental wealth was an even stronger predictor and influencer on the future wealth of their grandchildren.
+  
+The public data set that was used is the Panel Study of Income Dynamics (PSID). The study began in 1968 with over 5,000 families and still tracks a variety of variables in annual surveys to this date. The data that I drew from the study was total famiy income from 1977 to 2017.
+
+After hours of trying to understand what I was looking at, failing at converting sas files, and trying to parse the information with python, I finally have a csv with the information that I want. Here is the journey that got me to this point.
+
+
+### The "Legend" of the data
+The data comes with a codebook that explains what each of the labels represents. For each year, there is a label for release number, family ID, and the family's total income.
+
+![](projectData/incomeCodebook.png)
+
+### The Raw Data (150,000 nodes)
+Using the labels above, I pulled out only the rows that I was interested in looking at.
+![](projectData/incomeExcel.png)
+
+### This is the result
+![](projectData/cleanIncome.png)
+
+### Python Code to parse data
+The following code reads in the csv above and creates a nested dictionary that links the Family's designated ID with their income levels at each of the decades between 1977 and 2017. The result is a linked dictionary that looks like FamilyID:(Year1977:Income),(Year1987:Income)...
+```{r}
+# clean = pd.read_csv("C:/Users/amitmin/Documents/Math190/rstudio/projectData/cleanIncome.csv")
+# clean.fillna('', inplace=True)
+# clean = clean[1:]
+# cleanerDict = {}
+# # Appends the dictionary with {FamilyID: {Year:Income} }
+# for lines in clean.values:
+# 	if (lines[0] != ''):	
+# 		familyID = lines[0]
+# 		cleanerDict[familyID] = {'y1977': lines[1]}
+# 	if (lines[2] != ''):
+# 		familyID = lines[2]
+# 		if familyID in cleanerDict.keys():
+# 			cleanerDict[familyID]['y1987'] = lines[3]
+# 	if (lines[4] != ''):
+# 		familyID = lines[4]
+# 		if familyID in cleanerDict.keys():
+# 			cleanerDict[familyID]['y1997'] = lines[5]	
+# 	if (lines[6] != ''):
+# 		familyID = lines[6]
+# 		if familyID in cleanerDict.keys():
+# 			cleanerDict[familyID]['y2007'] = lines[7]
+# 	if (lines[8] != ''):
+# 		familyID = lines[8]
+# 		if familyID in cleanerDict.keys():
+# 			cleanerDict[familyID]['y2017'] = lines[9]
+```
+This snippet below deletes any of the families from the list if they did not have responses at all 5 years. I also create a new dictionary that stores the years in order, which is needed when converting the csv to a dataframe.
+```{r}
+# Gathers all keys that do not have responses at each decade
+# keysToDelete = []
+# for key, value in cleanerDict.items():
+# 	if len(value) < 5:
+# 		keysToDelete.append(key)
+# print("Families to delete: " + str(len(keysToDelete)))
+# 
+# #Deletes all keys form the dictionary that were gathered above
+# for key in keysToDelete:
+# 	cleanerDict.pop(key, None)
+# print("Total families left: " + str(len(cleanerDict)))
+# 
+# # Sorts the dates (keys) to be in chronological order (1977->1987->1997...)
+# sortedDict = {}
+# for key in cleanerDict:
+# 	sortedDict[key] = {}
+# 	sortedDict[key]['1977'] = cleanerDict[key]['y1977']
+# 	sortedDict[key]['1987'] = cleanerDict[key]['y1987']
+# 	sortedDict[key]['1997'] = cleanerDict[key]['y1997']
+# 	sortedDict[key]['2007'] = cleanerDict[key]['y2007']
+# 	sortedDict[key]['2017'] = cleanerDict[key]['y2017']
+# cleanDF = pd.DataFrame.from_dict(sortedDict, orient='index')
+# print(cleanDF)
+# 
+# csv = pd.DataFrame.to_csv(cleanDF)
+# 
+# text_file = open("C:/Users/amitmin/Documents/Math190/rstudio/projectData/finalIncome.csv", "w")
+# text_file.write(csv)
+```
+### Picked out specific years to observe
+
+![](projectData/finalIncome.png)
+
+We are now left with data that contains a familyID (which is the unique id that a family holds for all future surveys), and 5 points that report the total family income.
+
+
+```{r}
+library(readr)
+library(igraph)
+library(sand)
+library(ggplot2)
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+#incomeDF[order(incomeDF$X1987), ]
+
+incomeDF
+
+```
+The dataframe is split up and organized by the top 10% income earners for each date
+```{r}
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],0.1*nrow(incomeDF))
+top1977 <- subset(top1977, select = c("familyID","familyID"))
+
+top1987 <- head(incomeDF[order(incomeDF$X1987,decreasing=T),],0.1*nrow(incomeDF))
+top1987 <- subset(top1987, select = c("familyID","familyID"))
+
+top1997 <- head(incomeDF[order(incomeDF$X1997,decreasing=T),],0.1*nrow(incomeDF))
+top1997 <- subset(top1997, select = c("familyID","familyID"))
+
+top2007 <- head(incomeDF[order(incomeDF$X2007,decreasing=T),],0.1*nrow(incomeDF))
+top2007 <- subset(top2007, select = c("familyID","familyID"))
+
+top2017 <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],0.1*nrow(incomeDF))
+top2017 <- subset(top2017, select = c("familyID","familyID"))
+
+
+```
+
+The following plots show the families who remain in the top 10% of income earners over a time period of 10 years (shown in blue). Surprisingly, only 10 out of 100 families remained in the top 10% after a period of 10 years. The rest of the graphs show similar results.
+```{r}
+g.top1977 <- graph.data.frame(top1977, directed = FALSE)
+g.top1987 <- graph.data.frame(top1987, directed = FALSE)
+V(g.top1987)$color <- "green"
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top1987)) {
+    if (V(g.top1977)$name[x] == V(g.top1987)$name[y]) {
+      V(g.top1987)[y]$color <- "blue"
+    }
+  }
+}
+g.top1987$name = V(g.top1987)$name = ""
+plot(g.top1987)
+```
+
+```{r}
+g.top1987 <- graph.data.frame(top1987, directed = FALSE)
+
+g.top1997 <- graph.data.frame(top1997, directed = FALSE)
+V(g.top1997)$color <- "green"
+
+for (x in V(g.top1987)) {
+  for (y in V(g.top1997)) {
+    if (V(g.top1987)$name[x] == V(g.top1997)$name[y]) {
+      V(g.top1997)[y]$color <- "blue"
+    }
+  }
+}
+g.top1997$name = V(g.top1997)$name = ""
+plot(g.top1997)
+```
+```{r}
+g.top1997 <- graph.data.frame(top1997, directed = FALSE)
+
+g.top2007 <- graph.data.frame(top2007, directed = FALSE)
+V(g.top2007)$color <- "green"
+
+for (x in V(g.top1997)) {
+  for (y in V(g.top2007)) {
+    if (V(g.top1997)$name[x] == V(g.top2007)$name[y]) {
+      V(g.top2007)[y]$color <- "blue"
+    }
+  }
+}
+g.top2007$name = V(g.top2007)$name = ""
+plot(g.top2007)
+```
+
+```{r}
+g.top2007 <- graph.data.frame(top2007, directed = FALSE)
+
+g.top2017 <- graph.data.frame(top2017, directed = FALSE)
+V(g.top2017)$color <- "green"
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top2017)) {
+    if (V(g.top1977)$name[x] == V(g.top2017)$name[y]) {
+      V(g.top2017)[y]$color <- "blue"
+    }
+  }
+}
+g.top2017$name = V(g.top2017)$name = ""
+plot(g.top2017)
+```
+
+Only 12/100 of the top 10% in 1977 remain in the top 10% in 2017.
+```{r}
+g.top1977 <- graph.data.frame(top1977, directed = FALSE)
+
+g.top2017 <- graph.data.frame(top2017, directed = FALSE)
+V(g.top2017)$color <- "green"
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top2017)) {
+    if (V(g.top1977)$name[x] == V(g.top2017)$name[y]) {
+      V(g.top2017)[y]$color <- "blue"
+    }
+  }
+}
+g.top2017$name = V(g.top2017)$name = ""
+plot(g.top2017)
+```
+
+The following scatterplots show the total income of the families in the top 10% for each time period.
+```{r}
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+incomeDF
+
+options(scipen=10000)
+
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],0.1*nrow(incomeDF))
+top1977 <- subset(top1977, select = c("familyID","X1977"))
+qplot(,top1977$X1977,xlab="familyID",ylab="Total Income",main="Top 1977 Incomes")
+```
+
+
+```{r}
+top1987 <- head(incomeDF[order(incomeDF$X1987,decreasing=T),],0.1*nrow(incomeDF))
+top1987 <- subset(top1987, select = c("familyID", "X1987"))
+qplot(,top1987$X1987,xlab="familyID",ylab="Total Income",main="Top 1987 Incomes")
+```
+
+
+```{r}
+top1997 <- head(incomeDF[order(incomeDF$X1997,decreasing=T),],0.1*nrow(incomeDF))
+top1997 <- subset(top1997, select = c("familyID", "X1997"))
+qplot(,top1997$X1997,xlab="familyID",ylab="Total Income",main="Top 1997 Incomes")
+```
+
+The scatterplot remains very similar throughout all of the years, with one exception. There is growing distance between the points of the top 1%, where income inequality is becoming greater.
+```{r}
+top2007 <- head(incomeDF[order(incomeDF$X2007,decreasing=T),],0.1*nrow(incomeDF))
+top2007 <- subset(top2007, select = c("familyID", "X2007"))
+qplot(,top2007$X2007,xlab="familyID",ylab="Total Income",main="Top 2007 Incomes")
+```
+
+```{r}
+top2017 <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],0.1*nrow(incomeDF))
+top2017 <- subset(top2017, select = c("familyID", "X2017"))
+qplot(,top2017$X2017,xlab="familyID",ylab="Total Income",main="Top 2017 Incomes")
+```
+
+Removing the top 2 income earners of 2017, the graphs of 1977 and 2017 look almost identical. It is extremely interesting to see how the top .1% has been created with extremely large wealth inequality.
+```{r}
+top2017 <- top2017[c(-1,-2),]
+qplot(,top2017$X2017,xlab="familyID",ylab="Total Income",main="Top 2017 Incomes")
+qplot(,top1977$X1977,xlab="familyID",ylab="Total Income",main="Top 1977 Incomes")
+```
+
+The code below creates edges between a node and the 16 nodes above and below it, ranked by wealth in 1977. The result is 32 total edges for each node. The families are re-sorted by their 2017 wealth ranking, and edges are attached in the same process. The result is a family with 32 edges, but some edges may be repeated between families. These repeated edges between nodes signify that a family may have lower income mobility, and has connected to families that have remained in the same "ranking" of income. A higher number of unique edges between families signifies higher income mobility.
+```{r}
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+incomeDF <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+incomeDF1 <- subset(incomeDF, select = c("familyID","X1977"))
+
+g.income <- graph.data.frame(incomeDF1, directed = FALSE)
+g.income <- delete.edges(g.income, edges=1:nrow(incomeDF))
+g.income <- delete.vertices(g.income, 989:1790)
+
+# Attach edges between for all 1977 vertices +-16 to their position
+x = 17
+for (i in 1:nrow(incomeDF)) {
+  if (x > nrow(incomeDF) - 17) {
+    break
+  }
+  g.income <- add_edges(g.income,c(x,x-1, x,x-2, x,x-3, x,x-4, x,x-5, x,x-6, x,x-7, x,x-8, x,x-9, x,x-10, x,x-11, x,x-12, x,x-13, x,x-14, x,x-15, x,x-16))
+  g.income <- add_edges(g.income,c(x,x+1, x,x+2, x,x+3, x,x+4, x,x+5, x,x+6, x,x+7, x,x+8, x,x+9, x,x+10, x,x+11, x,x+12, x,x+13, x,x+14, x,x+15, x,x+16))
+  x = x + 1
+}
+
+# Attach edges between for all 2017 vertices +-16 to their position
+incomeDF <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],1*nrow(incomeDF))
+incomeDF2 <- subset(incomeDF, select = c("familyID","X2017"))
+g.income2 <- graph.data.frame(incomeDF2, directed = FALSE)
+g.income2 <- delete.edges(g.income2, edges=1:nrow(incomeDF))
+g.income2 <- delete.vertices(g.income2, 989:1790)
+
+x = 17
+for (i in 1:nrow(incomeDF)) {
+  if (x > nrow(incomeDF) - 17) {
+    break
+  }
+  g.income <- add_edges(g.income,c(V(g.income2)$name[x],V(g.income2)$name[x-1], V(g.income2)$name[x],V(g.income2)$name[x-2], V(g.income2)$name[x],V(g.income2)$name[x-3],V(g.income2)$name[x],V(g.income2)$name[x-4],V(g.income2)$name[x],V(g.income2)$name[x-5],V(g.income2)$name[x],V(g.income2)$name[x-6],V(g.income2)$name[x],V(g.income2)$name[x-7],V(g.income2)$name[x],V(g.income2)$name[x-8],V(g.income2)$name[x],V(g.income2)$name[x-9],V(g.income2)$name[x],V(g.income2)$name[x-10],V(g.income2)$name[x],V(g.income2)$name[x-11],V(g.income2)$name[x],V(g.income2)$name[x-12],V(g.income2)$name[x],V(g.income2)$name[x-13],V(g.income2)$name[x],V(g.income2)$name[x-14],V(g.income2)$name[x],V(g.income2)$name[x-15],V(g.income2)$name[x],V(g.income2)$name[x-16]))
+  
+  g.income <- add_edges(g.income,c(V(g.income2)$name[x],V(g.income2)$name[x+1], V(g.income2)$name[x],V(g.income2)$name[x+2], V(g.income2)$name[x],V(g.income2)$name[x+3],V(g.income2)$name[x],V(g.income2)$name[x+4],V(g.income2)$name[x],V(g.income2)$name[x+5],V(g.income2)$name[x],V(g.income2)$name[x+6],V(g.income2)$name[x],V(g.income2)$name[x+7],V(g.income2)$name[x],V(g.income2)$name[x+8],V(g.income2)$name[x],V(g.income2)$name[x+9],V(g.income2)$name[x],V(g.income2)$name[x+10],V(g.income2)$name[x],V(g.income2)$name[x+11],V(g.income2)$name[x],V(g.income2)$name[x+12],V(g.income2)$name[x],V(g.income2)$name[x+13],V(g.income2)$name[x],V(g.income2)$name[x+14],V(g.income2)$name[x],V(g.income2)$name[x+15],V(g.income2)$name[x],V(g.income2)$name[x+16]))
+  
+  x = x + 1
+}
+```
+
+We can now look at the attributes of the graph of top 20% income earners of 1977 and 2017
+```{r}
+igraph.options(vertex.size = 8, edge.arrow.size =1000, vertex.label=NA)
+
+g.incomeHigh <- induced.subgraph(g.income, 20:220)
+g.incomeHighOrig <- g.incomeHigh
+plot(g.incomeHighOrig)
+g.incomeHigh <- simplify(g.incomeHigh)
+plot(g.incomeHigh)
+hist(degree(g.incomeHigh), col="lightblue", xlab="Degree", ylab="Frequency")
+#neighbors(g.incomeHigh, v=V(g.incomeHigh)[5])
+#hist(neighbors(g.incomeHigh, v=V(g.incomeHigh), col="lightblue", xlab="Degree", ylab="Frequency"))
+```
+
+
+```{r}
+g.incomeMed <- induced.subgraph(g.income, 350:550)
+g.incomeMedOrig <- g.incomeMed
+plot(g.incomeMedOrig)
+g.incomeMed <- simplify(g.incomeMed)
+plot(g.incomeMed)
+hist(degree(g.incomeMed), col="lightblue", xlab="Degree", ylab="Frequency")
+#hist(neighbors(g.incomeMed), col="lightblue", xlab="Degree", ylab="Frequency")
+```
+
+
+```{r}
+g.incomeLow <- induced.subgraph(g.income, 750:950)
+g.incomeLowOrig <- g.incomeLow
+plot(g.incomeLowOrig)
+mean(degree(g.income))
+g.incomeLow <- simplify(g.incomeLow)
+plot(g.incomeLow)
+hist(degree(g.incomeLow), col="lightblue", xlab="Degree", ylab="Frequency")
+```
+
+
+
+```{r}
+
+#g.incomeSimple <- simplify(g.income)
+g.incomeSimple <- (g.income)
+g.income
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 20:120)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 120:220)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 220:320)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 320:420)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 420:520)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 520:620)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 620:720)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 720:820)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+g.incomeHigh <- induced.subgraph(g.incomeSimple, 820:920)
+mean(neighbors(g.incomeHigh,v=V(g.incomeHigh)))
+
+```
+Looking at the mean degree of each vertex, we are able to see how many unique edges exist for a vertex within a certain range. This allows us to look at only the unique edges between nodes - if there are many duplicate edges, the mean degree will be low because the vertex has created many duplicate edges by connecting to the same people around it. This implies lower income mobility. This is puzzling because there does not seem to be much of a pattern to it at all. The range of 320-520 shows the lowest mean degree, but I don't think this implies anything, as there is no real pattern to the rest of the data.
+
+
+Using the mean degrees above, I wanted to see if I was able to pinpoint a 10% range that retained the most families between 1977 and 2017. For example, the mean degree of the range of families 120:220 was just 11.44, so I would think that there is a lot of families that would be in the same percentile between 1977 and 2017.
+
+Top 10%
+```{r}
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+top1977 <- subset(top1977, select = c("familyID", "familyID"))
+top1977 <- top1977[20:120,]
+
+top2017 <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],1*nrow(incomeDF))
+top2017 <- subset(top2017, select = c("familyID", "familyID"))
+top2017 <- top2017[20:120,]
+
+igraph.options(vertex.size = 15, edge.arrow.size =1000, vertex.label=NA)
+
+g.top1977 <- graph.data.frame(top1977, directed = FALSE)
+g.top2017 <- graph.data.frame(top2017, directed = FALSE)
+V(g.top2017)$color <- "green"
+
+blue = 0
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top2017)) {
+    if (V(g.top1977)$name[x] == V(g.top2017)$name[y]) {
+      V(g.top2017)[y]$color <- "blue"
+      blue = blue + 1
+    }
+  }
+}
+
+g.top2017$name = V(g.top2017)$name = ""
+print(blue)
+plot(g.top2017)
+```
+
+10-20 percentile
+```{r}
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+top1977 <- subset(top1977, select = c("familyID","familyID"))
+top1977 <- top1977[120:220,]
+
+top2017 <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],1*nrow(incomeDF))
+top2017 <- subset(top2017, select = c("familyID","familyID"))
+top2017 <- top2017[120:220,]
+
+igraph.options(vertex.size = 15, edge.arrow.size =1000, vertex.label=NA)
+
+g.top1977 <- graph.data.frame(top1977, directed = FALSE)
+g.top2017 <- graph.data.frame(top2017, directed = FALSE)
+V(g.top2017)$color <- "green"
+
+blue = 0
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top2017)) {
+    if (V(g.top1977)$name[x] == V(g.top2017)$name[y]) {
+      V(g.top2017)[y]$color <- "blue"
+      blue = blue + 1
+    }
+  }
+}
+
+g.top2017$name = V(g.top2017)$name = ""
+print(blue)
+plot(g.top2017)
+
+```
+
+20-30 percentile
+```{r}
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+top1977 <- subset(top1977, select = c("familyID","familyID"))
+top1977 <- top1977[220:320,]
+
+top2017 <- head(incomeDF[order(incomeDF$X2017,decreasing=T),],1*nrow(incomeDF))
+top2017 <- subset(top2017, select = c("familyID","familyID"))
+top2017 <- top2017[220:320,]
+
+igraph.options(vertex.size = 15, edge.arrow.size =1000, vertex.label=NA)
+
+g.top1977 <- graph.data.frame(top1977, directed = FALSE)
+g.top2017 <- graph.data.frame(top2017, directed = FALSE)
+V(g.top2017)$color <- "green"
+
+blue = 0
+
+for (x in V(g.top1977)) {
+  for (y in V(g.top2017)) {
+    if (V(g.top1977)$name[x] == V(g.top2017)$name[y]) {
+      V(g.top2017)[y]$color <- "blue"
+      blue = blue + 1
+    }
+  }
+}
+
+g.top2017$name = V(g.top2017)$name = ""
+print(blue)
+plot(g.top2017)
+```
+Unfortunately,  I once again found no correlation between the mean degree and the families that remained in the same percentile.
+
+
+
+The average income for 100 families in the top 10%, mid 50%, and bottom 10% is shown below.
+```{r}
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+
+list <- c()
+length = 100
+
+sum = 0
+for (x in 1:length) {
+  sum = sum + top1977$X1977[x]
+  list <- c(list, top1977$familyID[x])
+  #append(list, top1977$familyID[x])
+  
+}
+print("Average 1977 income")
+average = sum / length
+print(average)
+
+sum2 = 0
+for (x in 1:nrow(top1977)) {
+  for (y in 1:length(list)) {
+    if (list[y] == top1977$familyID[x]) {
+      #print(top1977$familyID[x])
+      #print(top1977$X2017[x])
+      sum2 = sum2 + top1977$X2017[x]
+    }
+  }
+}
+average2 = sum2 / length
+print("Average 2017 income")
+print(average2)
+print("Average income growth")
+print(average2/average)
+
+```
+
+```{r}
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+
+list <- c()
+length = 100
+
+sum = 0
+for (x in 500:600) {
+  sum = sum + top1977$X1977[x]
+  list <- c(list, top1977$familyID[x])
+  #append(list, top1977$familyID[x])
+  
+}
+print("Average 1977 income")
+average = sum / length
+print(average)
+
+sum2 = 0
+for (x in 1:nrow(top1977)) {
+  for (y in 1:length(list)) {
+    if (list[y] == top1977$familyID[x]) {
+      #print(top1977$familyID[x])
+      #print(top1977$X2017[x])
+      sum2 = sum2 + top1977$X2017[x]
+    }
+  }
+}
+average2 = sum2 / length
+print("Average 2017 income")
+print(average2)
+print("Average income growth")
+print(average2/average)
+```
+```{r}
+incomeDF <- read.csv('projectData/finalIncome.csv', header = TRUE)
+
+top1977 <- head(incomeDF[order(incomeDF$X1977,decreasing=T),],1*nrow(incomeDF))
+
+list <- c()
+length = 100
+
+sum = 0
+for (x in 880:980) {
+  sum = sum + top1977$X1977[x]
+  list <- c(list, top1977$familyID[x])
+  #append(list, top1977$familyID[x])
+  
+}
+print("Average 1977 income")
+average = sum / length
+print(average)
+
+sum2 = 0
+for (x in 1:nrow(top1977)) {
+  for (y in 1:length(list)) {
+    if (list[y] == top1977$familyID[x]) {
+      #print(top1977$familyID[x])
+      #print(top1977$X2017[x])
+      sum2 = sum2 + top1977$X2017[x]
+    }
+  }
+}
+average2 = sum2 / length
+print("Average 2017 income")
+print(average2)
+print("Average income growth")
+print(average2/average)
+```
+This was my final effort to make some quantitative sense of the data to prove my hyptohesis, and I was unable to do so. The top 10% of 1977 showed nearly the same level of average income in 2017 as did the bottom 10%.
+
+
+
+# Conclusion
+Overall, I wasn't able to conclude that income mobility differs between income levels of over 1000 families. I analyzed the families that stayed within the top 10%, average income changes, and income mobility through networks.From the data presented, I would actually conclude that there is no factor of income mobility that exists within these 1000 families. At each decade, there seemed to be only be about a 10% retention of the top 10%, which implies complete randomness.
+
+I am not sure why this is the case. I don't believe that it makes much sense for this to be the case, and it directly contrasts with the paper I mentioned earlier. I have checked my work for errors numerous times, and I was unable to find anything. When looking at the raw data, there is not much that makes sense. Many families jump between income levels that do not make sense in the real world; for example, one family had an income of $10,000 in 1977, $300,000 in 1987, and $10,000 in 1997. These quesitonable income changes make me inclined to believe that there is either an error in data collection, or an error in my interpretion of the income that the study presents.
+
+I think that perhaps the best course of action in the future would be to contact the study and ensure that the data is representing what I believe it represents. Perhaps it is not actually total family income, and is something else.
+
+I began this project wanting to know if having richer friends would make you richer, but I was unable to find data that had a friend network along with net worth or income levels. I would still love to see a study that analyzes this question. One way that I thought of doing this that is very simple is to use Facebook to build a network of friends, and then analyze their average household values through wake county's real estate search.
+
+
+## Methods
+The main tools that I used were readr to read in and format the data, basic r functions to trim and reorganize data, the ggplot2 package in order to create graphs, and the igraph package to create all network graphs. I analyzed the data by looking at retention rates within percentiles, broad trend graphs, igraph plot functions, and my own interpretation on income-mobility, which consisted of connecting nodes that existed in a +-16 range from eachother.
+
+
+
+
+
+# Works Cited
+
+
+Fabian T Pfeffer, Alexandra Killewald, Generations of Advantage. Multigenerational Correlations in Family Wealth, Social Forces, Volume 96, Issue 4, June 2018, Pages 1411–1442, https://doi.org/10.1093/sf/sox086
+
+"Panel Study of Income Dynamics, public use dataset [restricted use data, if appropriate]. Produced and distributed by the Institute for Social Research, University of Michigan, Ann Arbor, MI (year data were downloaded)";
+
+
